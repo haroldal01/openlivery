@@ -150,7 +150,7 @@ async def process_inbound(
     same fields used here. ``conversation_channel`` and ``channel_fk_field``
     select the Conversation channel label and FK column for the caller.
     """
-    if conversation_channel == "whatsapp" or (conversation_channel == "whatsapp_cloud" and channel.coexistence):
+    if conversation_channel in ("whatsapp", "whatsapp_cloud"):
         from .whatsapp_coexistence import lock_chats
         lock_chats(db, channel.id, [peer for peer in (inbound.external_chat_id, inbound.sender_user_id) if peer])
     fk_column = getattr(Conversation, channel_fk_field)
@@ -275,6 +275,8 @@ async def process_inbound(
             conversation.social_last_inbound_at = inbound.occurred_at
         conversation.waiting_since = min(conversation.waiting_since, inbound.occurred_at)
     db.add(visitor_message)
+    from .crm import capture_lead
+    capture_lead(db, channel.client, conversation)
     if inbound.media_kind and inbound.media_bytes:
         db.flush()
         store_attachment(
@@ -401,6 +403,13 @@ async def _reply_with_ai(db: Session, channel, conversation: Conversation, retri
         channel.updated_at = now_utc()
         db.commit()
         return InboundResult(accepted=True, conversation_id=conversation.id, mode="ai")
+    from .crm import build_crm_specs, require_automation
+    try:
+        require_automation(db, channel.client)
+    except HTTPException as exc:
+        channel.last_error = str(exc.detail)
+        db.commit()
+        return InboundResult(accepted=True, conversation_id=conversation.id, mode=conversation.mode)
     credentials = resolve_agent_credentials(db, agent)
     if not agent.is_active or not credentials or not agent.model.strip():
         channel.last_error = "A message was received, but the assigned agent is not ready (model or provider key missing)."
@@ -425,6 +434,10 @@ async def _reply_with_ai(db: Session, channel, conversation: Conversation, retri
     definitions = field_definitions(db, agent.client_id, agent.prompt_language)
     capture_block = capture_context(agent, conversation, definitions, agent.prompt_language)
     system_content = build_system_prompt(agent, knowledge.text, capture_block)
+    from .crm import settings_for
+    business_faq = settings_for(channel.client).business_faq
+    if business_faq:
+        system_content += "\n\nConfigured business information (use only stated hours, location, services and prices; ask a person when unknown):\n" + business_faq
     # Who is on the other end, so forms, e-mails and tools get the phone and
     # e-mail the conversation already knows instead of "not specified".
     contact_block = contact_context(conversation, agent.prompt_language, definitions)
@@ -455,6 +468,7 @@ async def _reply_with_ai(db: Session, channel, conversation: Conversation, retri
         system_content += "\n\n" + resolution_prompt(agent)
     extra_specs = [
         *(escalation_specs or []), *([capture_spec] if capture_spec else []), *([resolution_spec] if resolution_spec else []),
+        *build_crm_specs(db, channel.client, conversation),
     ] or None
     messages = [
         {"role": "system", "content": system_content},
@@ -485,6 +499,9 @@ async def _reply_with_ai(db: Session, channel, conversation: Conversation, retri
 
     reply_text = completion.text
     if conversation.channel in ("whatsapp", "whatsapp_cloud"):
+        # Serialize the final check and insert across webhook workers.
+        db.scalar(select(Conversation).where(Conversation.id == conversation.id)
+            .with_for_update().execution_options(populate_existing=True))
         # A Business app echo or an operator may take over during generation.
         # Re-read persisted state; cancelling an in-process timer is not enough
         # when the webhook was received by another process or event loop.

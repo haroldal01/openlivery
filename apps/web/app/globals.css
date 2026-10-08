@@ -2716,3 +2716,50 @@ textarea[data-overflow="true"]::-webkit-scrollbar-thumb { border-radius: 8px; ba
 .drp-grid button.end { border-radius: 0 8px 8px 0; }
 .drp-grid button.start.end { border-radius: 8px; }
 .drp-foot { display: flex; justify-content: flex-end; gap: 8px; padding-top: 12px; border-top: 1px solid var(--line-soft, var(--line)); }
+
+/* The agency and client portal share one CRM workspace. */
+.crm-workspace { padding: 24px 0; }
+.portal-main .crm-workspace { padding: 24px; }
+.crm-toolbar, .crm-section-head, .crm-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
+.crm-toolbar { flex-wrap: wrap; }
+.crm-toolbar .segmented { overflow-x: auto; }
+.crm-toolbar .segmented button { white-space: nowrap; }
+.crm-panel { background: var(--surface, #fff); border: 1px solid var(--border, #e5e7eb); border-radius: 12px; padding: 24px; margin-bottom: 20px; }
+.crm-panel h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.crm-panel h3 { margin: 16px 0; }
+.crm-panel p, .crm-hint, .crm-grid small { color: var(--muted, #64748b); line-height: 1.6; }
+.crm-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.crm-grid label, .crm-section-head label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; font-weight: 500; }
+.crm-grid input, .crm-grid select, .crm-grid textarea, .crm-section-head input, .crm-pipeline select { border: 1px solid var(--border, #e5e7eb); border-radius: 7px; padding: 10px; font: inherit; color: inherit; background: var(--surface, #fff); width: 100%; }
+.crm-grid textarea { resize: vertical; }
+.crm-wide, .crm-grid .crm-form-actions { grid-column: 1 / -1; }
+.crm-grid .crm-check { flex-direction: row; align-items: center; justify-content: flex-start; }
+.crm-check input { width: 16px; height: 16px; flex-shrink: 0; }
+.crm-grid fieldset { border: 1px solid var(--border, #e5e7eb); border-radius: 8px; padding: 16px; }
+.crm-grid fieldset .crm-check { margin: 8px 0; }
+.crm-form-actions { justify-content: flex-end; margin: 0; }
+.crm-pipeline { display: grid; grid-template-columns: repeat(5, minmax(190px, 1fr)); overflow-x: auto; gap: 12px; padding-bottom: 12px; }
+.crm-pipeline section { background: var(--bg, #f8fafc); border-radius: 10px; padding: 12px; min-height: 240px; }
+.crm-pipeline header { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-bottom: 14px; }
+.crm-pipeline header span { color: var(--muted, #64748b); font-size: 12px; }
+.crm-pipeline article { display: flex; flex-direction: column; align-items: stretch; gap: 10px; padding: 16px; background: var(--surface, #fff); border: 1px solid var(--border, #e5e7eb); border-radius: 8px; margin-bottom: 10px; }
+.crm-pipeline article .text-button { text-align: left; white-space: normal; }
+.crm-pipeline article p { margin: 0; font-size: 12px; line-height: 1.5; white-space: pre-wrap; overflow-wrap: anywhere; }
+.crm-pipeline small, .crm-line-list small { color: var(--muted, #64748b); font-size: 12px; }
+.crm-line-list article { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--border, #e5e7eb); }
+.crm-line-list article:last-child { border-bottom: 0; }
+.crm-line-list article > div { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.crm-line-list article strong, .crm-line-list article small { overflow-wrap: anywhere; }
+.crm-error { color: #b42318 !important; }
+.crm-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; }
+.crm-metrics > div { display: flex; flex-direction: column; gap: 8px; padding: 16px; background: var(--bg, #f8fafc); border-radius: 8px; }
+.crm-metrics strong { font-size: 22px; font-weight: 600; }
+.crm-metrics small { color: var(--muted, #64748b); }
+@media (max-width: 700px) {
+  .portal-main .crm-workspace { padding: 16px; }
+  .crm-grid { grid-template-columns: minmax(0, 1fr); }
+  .crm-panel { padding: 16px; }
+  .crm-section-head, .crm-line-list article { align-items: flex-start; flex-wrap: wrap; }
+  .crm-toolbar .segmented { width: 100%; }
+  .portal-nav nav:has(a.crm-nav) { grid-template-columns: repeat(5, 1fr); }
+}

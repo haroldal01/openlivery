@@ -6,6 +6,7 @@ messages (Meta's error detail, never the credentials).
 """
 
 import httpx
+from urllib.parse import urlsplit
 from fastapi import HTTPException
 
 from ..config import get_settings
@@ -31,6 +32,21 @@ def graph_error(response: httpx.Response) -> str:
 
 async def graph_request(method: str, url: str, access_token: str, **kwargs) -> httpx.Response:
     headers = {"Authorization": f"Bearer {access_token}"}
+    if access_token.startswith("kapso:"):
+        settings = get_settings()
+        if not settings.kapso_api_key:
+            raise HTTPException(409, "Kapso is not configured")
+        graph_root = settings.meta_graph_base_url.rstrip('/') + '/'
+        if url.startswith(graph_root):
+            url = settings.kapso_base_url.rstrip('/') + '/meta/whatsapp/v24.0/' + url[len(graph_root):]
+        elif (urlsplit(url).scheme != "https"
+                or urlsplit(url).netloc != urlsplit(settings.kapso_base_url).netloc):
+            raise HTTPException(502, "Unexpected Kapso media host")
+        headers = {"X-API-Key": settings.kapso_api_key}
+        payload = kwargs.get("json") or {}
+        if method == "POST" and urlsplit(url).path.endswith("/messages") and payload.get("type") not in (None, "reaction"):
+            from .crm import reserve_kapso_message
+            reserve_kapso_message(access_token.removeprefix("kapso:"))
     try:
         async with httpx.AsyncClient(timeout=GRAPH_TIMEOUT) as client:
             return await client.request(method, url, headers=headers, **kwargs)
@@ -173,12 +189,14 @@ async def send_media(
 async def fetch_media(access_token: str, media_id: str) -> tuple[bytes, str]:
     """Download an inbound media file: resolve the short-lived URL, then fetch
     it with the same token. Returns (data, mime_type)."""
-    lookup = await graph_request("GET", graph_url(media_id), access_token)
+    params = {"phone_number_id": access_token.removeprefix("kapso:")} if access_token.startswith("kapso:") else {}
+    lookup = await graph_request("GET", graph_url(media_id), access_token, params=params)
     if lookup.status_code >= 400:
         raise HTTPException(status_code=502, detail=f"Could not resolve the media file: {graph_error(lookup)}")
     try:
         info = lookup.json()
-        url, mime = info["url"], info.get("mime_type") or "application/octet-stream"
+        url = info["download_url"] if access_token.startswith("kapso:") else info["url"]
+        mime = info.get("mime_type") or "application/octet-stream"
     except (ValueError, KeyError) as exc:
         raise HTTPException(status_code=502, detail="Invalid media response from the Meta API.") from exc
     download = await graph_request("GET", url, access_token)

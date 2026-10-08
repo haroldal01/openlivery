@@ -73,6 +73,11 @@ class Client(Base):
     # the client tells the time in it; the prompt reads it from here.
     timezone: Mapped[str] = mapped_column(String(64), default="UTC", server_default="UTC")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    kapso_customer_id: Mapped[str | None] = mapped_column(String(80), nullable=True, unique=True)
+    crm_settings: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    billing: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    message_quota_period: Mapped[str] = mapped_column(String(7), default="", server_default="")
+    message_quota_used: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Optional per-client logo, shown in the widget and portal (falls back to
     # the agency logo). Bytes stored in Postgres like the agency logo.
     logo_data: Mapped[bytes | None] = mapped_column(LargeBinary, nullable=True, deferred=True)
@@ -324,12 +329,17 @@ class WhatsAppCloudChannel(Base):
     Credentials are provided manually (bring your own Meta app)."""
 
     __tablename__ = "whatsapp_cloud_channels"
+    __table_args__ = (Index("uq_kapso_phone", "phone_number_id", unique=True,
+        postgresql_where=text("provider = 'kapso' AND phone_number_id <> ''")),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
     agency_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agencies.id", ondelete="CASCADE"), index=True)
     client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), index=True)
     agent_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("agents.id", ondelete="RESTRICT"), index=True)
     status: Mapped[str] = mapped_column(String(30), default="disconnected")
+    provider: Mapped[str] = mapped_column(String(20), default="meta", server_default="meta")
+    kapso_setup_link_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    kapso_webhook_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
     phone_number: Mapped[str | None] = mapped_column(String(80), nullable=True)
     display_name: Mapped[str | None] = mapped_column(String(180), nullable=True)
     label: Mapped[str | None] = mapped_column(String(80), nullable=True)
@@ -547,6 +557,8 @@ class Contact(Base):
     phone: Mapped[str | None] = mapped_column(String(40), nullable=True)
     email: Mapped[str | None] = mapped_column(String(255), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    whatsapp_opt_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    whatsapp_opt_in_source: Mapped[str | None] = mapped_column(String(240), nullable=True)
     # Values of the client's custom contact fields, keyed by field key. The
     # built-in details (name, phone, email) stay in their own columns.
     attributes: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
@@ -1155,3 +1167,63 @@ class SocialHistoryImport(Base):
     locked_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
+class Opportunity(Base):
+    __tablename__ = "opportunities"
+    __table_args__ = (UniqueConstraint("conversation_id", name="uq_opportunities_conversation"),)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    stage: Mapped[str] = mapped_column(String(30), default="new")
+    value_cents: Mapped[int] = mapped_column(Integer, default=0)
+    notes: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc, onupdate=now_utc)
+
+
+class Appointment(Base):
+    __tablename__ = "appointments"
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    contact_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("contacts.id", ondelete="SET NULL"), nullable=True)
+    conversation_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("conversations.id", ondelete="SET NULL"), nullable=True)
+    title: Mapped[str] = mapped_column(String(240))
+    resource: Mapped[str] = mapped_column(String(80))
+    starts_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), index=True)
+    ends_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    status: Mapped[str] = mapped_column(String(20), default="confirmed")
+    reminder_due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    reminder_status: Mapped[str] = mapped_column(String(20), default="disabled")
+    reminder_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    reminder_message_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("messages.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class ClientPayment(Base):
+    __tablename__ = "client_payments"
+    __table_args__ = (UniqueConstraint("client_id", "reference", name="uq_client_payment_reference"),)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
+    client_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("clients.id", ondelete="CASCADE"), index=True)
+    amount_cents: Mapped[int] = mapped_column(Integer)
+    currency: Mapped[str] = mapped_column(String(3))
+    period: Mapped[str] = mapped_column(String(7))
+    reference: Mapped[str] = mapped_column(String(240))
+    recorded_by: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="RESTRICT"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+
+
+class KapsoWebhookEvent(Base):
+    __tablename__ = "kapso_webhook_events"
+    __table_args__ = (UniqueConstraint("channel_id", "event_key", name="uq_kapso_event"),)
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=new_uuid)
+    channel_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("whatsapp_cloud_channels.id", ondelete="CASCADE"), index=True)
+    event_key: Mapped[str] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON)
+    state: Mapped[str] = mapped_column(String(20), default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)

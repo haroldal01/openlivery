@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # upload the sample file of a template header: Meta files uploads under
     # the app, not the business account.
     whatsapp_app_id: str = ""
+    kapso_api_key: str = ""
+    kapso_base_url: str = "https://api.kapso.ai"
+    kapso_webhook_secret: str = ""
     # Speech-to-text models offered for the audio capability. OpenRouter serves
     # them through its audio endpoint but lists them nowhere its API exposes,
     # so the offer is declared here; every other model is read live.

@@ -57,14 +57,19 @@ def _client_agent(db: Session, user: User, client_id: uuid.UUID, agent_id: uuid.
 
 
 def _public_channel(channel: WhatsAppCloudChannel) -> dict:
+    provider_path = "kapso" if channel.provider == "kapso" else "whatsapp-cloud"
     webhook_url = (
-        f"{get_settings().frontend_url.rstrip('/')}/api/public/whatsapp-cloud/channels/{channel.id}/webhook"
+        f"{get_settings().frontend_url.rstrip('/')}/api/public/{provider_path}/channels/{channel.id}/webhook"
     )
     return {
         "id": channel.id,
         "client_id": channel.client_id,
         "agent_id": channel.agent_id,
         "status": channel.status,
+        "provider": channel.provider,
+        "kapso_setup_link_id": channel.kapso_setup_link_id,
+        "kapso_webhook_id": channel.kapso_webhook_id,
+        "kapso_funding": (channel.coexistence_sync or {}).get("kapso_funding", {}),
         "phone_number": channel.phone_number,
         "display_name": channel.display_name,
         "label": channel.label,
@@ -98,6 +103,15 @@ def list_channels(client_id: uuid.UUID, db: Session = Depends(get_db), user: Use
 
 def _apply_update(db: Session, user: User, channel: WhatsAppCloudChannel, payload: WhatsAppCloudChannelUpdate) -> None:
     agent = _client_agent(db, user, channel.client_id, payload.agent_id)
+    if (payload.access_token or "").strip().startswith("kapso:"):
+        raise HTTPException(422, "Kapso routing credentials can only be issued by hosted setup")
+    if channel.provider == "kapso":
+        if any((payload.phone_number_id, payload.waba_id, payload.access_token, payload.app_secret)):
+            raise HTTPException(409, "Use hosted setup to change a Kapso number")
+        channel.agent_id = agent.id
+        channel.label = (payload.label or "").strip() or None
+        channel.updated_at = now_utc()
+        return
     # One number answers on one line. Saving the same one twice would give two
     # agents the same inbox, and each channel's webhook would accept the
     # other's traffic.
@@ -161,6 +175,10 @@ async def refresh_channel(ref: uuid.UUID, db: Session = Depends(get_db), user: U
     from ..services.whatsapp_coexistence import refresh_connection
 
     channel = _channel_for_user(db, user, ref)
+    if channel.provider == "kapso":
+        from ..services.kapso import refresh_channel
+        await refresh_channel(db, channel)
+        return _public_channel(channel)
     await refresh_connection(db, channel)
     db.refresh(channel)
     return _public_channel(channel)
@@ -212,6 +230,12 @@ def remove_channel(channel_id: uuid.UUID, db: Session = Depends(get_db), user: U
 @router.post("/channels/{ref}/connect", response_model=WhatsAppCloudChannelOut)
 async def connect_channel(ref: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     channel = _channel_for_user(db, user, ref)
+    if channel.provider == "kapso":
+        from ..services.kapso import refresh_channel
+        await refresh_channel(db, channel)
+        channel.is_enabled = True
+        db.commit()
+        return _public_channel(channel)
     if not channel.encrypted_access_token or not channel.encrypted_app_secret or not channel.phone_number_id:
         raise HTTPException(
             status_code=400,

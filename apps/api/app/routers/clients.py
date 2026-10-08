@@ -468,6 +468,8 @@ def create_portal_user(
 ):
     client = _client(db, user, client_id)
     email = payload.email.lower()
+    from ..services.crm import require_user_capacity
+    require_user_capacity(db, client)
     existing = db.scalar(
         select(PortalUser).where(PortalUser.client_id == client.id, PortalUser.email == email)
     )
@@ -502,6 +504,9 @@ def update_portal_user(
 ):
     portal_user = _portal_user(db, user, client_id, portal_user_id)
     values = payload.model_dump(exclude_unset=True)
+    if values.get("is_active") and not portal_user.is_active:
+        from ..services.crm import require_user_capacity
+        require_user_capacity(db, _client(db, user, client_id))
     password = values.pop("password", None)
     if password:
         portal_user.password_hash = hash_password(password)

@@ -31,6 +31,8 @@ from .routers import (
     webchat,
     social,
     social_webhook,
+    crm,
+    kapso,
 )
 
 
@@ -62,8 +64,21 @@ async def _follow_up_loop() -> None:
         try:
             with new_session() as db:
                 await run_due(db)
+                from .services.crm import run_reminders
+                await run_reminders(db)
         except Exception:  # noqa: BLE001 - a failed sweep must not stop the next one
             logger.exception("Follow-up sweep failed")
+
+
+async def _kapso_loop() -> None:
+    from .services.kapso_worker import run_due
+    while True:
+        try:
+            with new_session() as db:
+                await run_due(db)
+        except Exception:
+            logger.exception("Kapso webhook processing failed")
+        await asyncio.sleep(2)
 
 
 @asynccontextmanager
@@ -72,11 +87,12 @@ async def lifespan(_: FastAPI):
     start_worker()
     sweeper = asyncio.create_task(_auto_resolve_loop()) if settings.auto_resolve_after_hours > 0 else None
     follow_ups = asyncio.create_task(_follow_up_loop()) if settings.follow_up_sweep_seconds > 0 else None
+    kapso_worker = asyncio.create_task(_kapso_loop()) if settings.kapso_api_key else None
     try:
         yield
     finally:
         await stop_worker()
-        for task in (sweeper, follow_ups):
+        for task in (sweeper, follow_ups, kapso_worker):
             if task:
                 task.cancel()
 
@@ -128,3 +144,8 @@ app.include_router(widget.router, prefix="/api")
 app.include_router(domains.public_router, prefix="/api")
 app.include_router(social.router, prefix="/api")
 app.include_router(social_webhook.public_router, prefix="/api")
+app.include_router(crm.agency_router, prefix="/api")
+app.include_router(crm.portal_router, prefix="/api")
+app.include_router(crm.billing_router, prefix="/api")
+app.include_router(kapso.router, prefix="/api")
+app.include_router(kapso.public_router, prefix="/api")

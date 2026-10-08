@@ -198,6 +198,8 @@ async def deliver(db: Session, webhook: TemplateWebhook, payload: TemplateWebhoo
         if earlier:
             return earlier
     contact = resolve_contact(db, client.id, phone=phone, name=payload.name.strip() or None)
+    if channel.provider == "kapso" and not contact.whatsapp_opt_in_at:
+        raise HTTPException(409, detail="Record this contact's explicit WhatsApp consent before sending a proactive template")
     conversation = db.scalar(
         select(Conversation)
         .where(

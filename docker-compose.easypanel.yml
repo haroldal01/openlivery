@@ -30,6 +30,8 @@ services:
       COOKIE_SAMESITE: lax
       ACCESS_TOKEN_MINUTES: ${ACCESS_TOKEN_MINUTES:-10080}
       STORAGE_DIR: /app/backend/storage
+      KAPSO_API_KEY: ${KAPSO_API_KEY:-}
+      KAPSO_WEBHOOK_SECRET: ${KAPSO_WEBHOOK_SECRET:-}
     volumes:
       - backend_storage:/app/backend/storage
     depends_on:

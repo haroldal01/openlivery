@@ -252,6 +252,8 @@ def _reachable(db: Session, conversation: Conversation) -> bool:
     if not channel or not channel.is_enabled or channel.status != "connected" or not conversation.external_chat_id:
         return False
     if kind == "whatsapp_cloud":
+        if channel.provider == "kapso" and (not conversation.contact or not conversation.contact.whatsapp_opt_in_at):
+            return False
         if channel.coexistence:
             from .whatsapp_coexistence import window_fields as coexistence_window
             return bool(coexistence_window(conversation)["reply_window_open"])

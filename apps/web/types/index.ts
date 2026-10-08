@@ -248,6 +248,10 @@ export type WidgetChannel = {
 };
 
 export type WhatsAppCloudChannel = {
+  provider: "meta" | "kapso";
+  kapso_setup_link_id: string | null;
+  kapso_webhook_id: string | null;
+  kapso_funding: { status?: string; paid_messages_paused?: boolean | null; reason?: string };
   id: string;
   client_id: string;
   agent_id: string;

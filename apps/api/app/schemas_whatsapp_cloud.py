@@ -19,6 +19,10 @@ class WhatsAppCloudChannelOut(BaseModel):
     client_id: uuid.UUID
     agent_id: uuid.UUID
     status: str
+    provider: str = "meta"
+    kapso_setup_link_id: str | None = None
+    kapso_webhook_id: str | None = None
+    kapso_funding: dict = Field(default_factory=dict)
     phone_number: str | None
     display_name: str | None
     label: str | None = None

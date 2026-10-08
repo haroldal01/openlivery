@@ -28,6 +28,7 @@ CANNED_MANAGE = "canned.manage"
 TEAMS_MANAGE = "teams.manage"
 # The reports tab.
 REPORTS_VIEW = "reports.view"
+CRM_MANAGE = "crm.manage"
 
 PERMISSIONS: tuple[str, ...] = (
     INBOX_DELETE,
@@ -37,6 +38,7 @@ PERMISSIONS: tuple[str, ...] = (
     CANNED_MANAGE,
     TEAMS_MANAGE,
     REPORTS_VIEW,
+    CRM_MANAGE,
 )
 
 ROLES: dict[str, frozenset[str]] = {

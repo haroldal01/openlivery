@@ -135,7 +135,7 @@ def _portal_client(
         client_id = uuid.UUID(payload["sub"])
     except (ValueError, KeyError, TypeError) as exc:
         raise HTTPException(status_code=401, detail="Invalid portal session") from exc
-    client = db.scalar(select(Client).where(Client.id == client_id, Client.portal_slug == slug, Client.portal_enabled.is_(True)))
+    client = db.scalar(select(Client).where(Client.id == client_id, Client.portal_slug == slug, Client.portal_enabled.is_(True), Client.is_active.is_(True)))
     if not client:
         raise HTTPException(status_code=401, detail="The portal is no longer available")
     # A named session must stay tied to an active member of this portal.
@@ -1676,6 +1676,11 @@ async def _send_template_to(db: Session, client: Client, to: str, payload: Templ
     """Send the template from ``channel`` and return (external id, text as the person reads it)."""
     if channel is None:
         raise HTTPException(status_code=409, detail="This conversation's WhatsApp API number no longer exists")
+    if channel.provider == "kapso":
+        from ..services.whatsapp_identity import resolve_peer_contact
+        contact = resolve_peer_contact(db, channel, to)
+        if not contact or not contact.whatsapp_opt_in_at:
+            raise HTTPException(409, detail="Record this contact's explicit WhatsApp consent before sending a proactive template")
     token, waba_id = template_credentials(db, client, channel)
     approved = next(
         (t for t in await list_templates(token, waba_id)

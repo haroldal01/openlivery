@@ -134,9 +134,13 @@ def apply_incoming_reaction(db: Session, channel: WhatsAppCloudChannel, message:
 )
 async def receive_webhook(channel_id: uuid.UUID, request: Request, db: Session = Depends(get_db)):
     channel = _channel(db, channel_id)
-    if not channel.encrypted_app_secret:
+    if channel.provider == "kapso" or not channel.encrypted_app_secret:
         raise HTTPException(status_code=403, detail="Channel is not configured")
-    raw = await request.body()
+    raw = bytearray()
+    async for chunk in request.stream():
+        raw.extend(chunk)
+        if len(raw) > 2 * 1024 * 1024:
+            raise HTTPException(413, detail="Webhook too large")
     app_secret = decrypt_secret(channel.encrypted_app_secret)
     expected = "sha256=" + hmac.new(app_secret.encode(), raw, hashlib.sha256).hexdigest()
     signature = request.headers.get("X-Hub-Signature-256") or ""

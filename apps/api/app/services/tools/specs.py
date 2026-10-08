@@ -24,8 +24,8 @@ class ToolSpec:
     tool: AgentTool | None = None      # backing row; None for built-in tools
     mcp_tool_name: str | None = None  # unprefixed name on the MCP server
     # Built-in tools run in-process: the handler takes the arguments and
-    # returns (result_text, is_error). It must not do I/O; side effects are
-    # recorded and applied by the caller after the loop finishes.
+    # returns (result_text, is_error). Conversational gestures defer their
+    # effects; CRM bookings persist before reporting success to the model.
     handler: Callable[[dict], tuple[str, bool]] | None = None
 
 

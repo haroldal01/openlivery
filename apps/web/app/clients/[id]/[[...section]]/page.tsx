@@ -19,6 +19,7 @@ import { FormSkeleton, ListRowsSkeleton } from "@/components/skeleton";
 import { useToast } from "@/components/toast";
 import { PasswordInput } from "@/components/password-input";
 import { accountName, ChannelIcon } from "@/lib/channels";
+import { CrmWorkspace } from "@/components/crm-workspace";
 import { WhatsAppCloudSetup } from "@/components/channels/whatsapp-cloud";
 import { WhatsAppSetup } from "@/components/channels/whatsapp";
 import { WebChatSetup } from "@/components/channels/webchat";
@@ -29,8 +30,8 @@ import { useLanguage, useT } from "@/lib/i18n";
 import { businessLabel, useIndustries } from "@/lib/industries";
 import type { Client, ClientDomain, PortalRole, PortalUser, SocialChannel, WhatsAppChannel, WhatsAppCloudChannel, WidgetChannel } from "@/types";
 
-type Tab = "details" | "agents" | "channels" | "teams" | "tags" | "fields" | "templates" | "webhooks" | "portal";
-const TABS: Tab[] = ["details", "agents", "channels", "teams", "tags", "fields", "templates", "webhooks", "portal"];
+type Tab = "crm" | "details" | "agents" | "channels" | "teams" | "tags" | "fields" | "templates" | "webhooks" | "portal";
+const TABS: Tab[] = ["details", "crm", "agents", "channels", "teams", "tags", "fields", "templates", "webhooks", "portal"];
 type ChannelKey = "whatsapp_cloud" | "whatsapp" | "webchat" | "instagram" | "messenger";
 /** A channel's setup view, named in the address as `/channels/<kind>`. */
 type ChannelKind = "whatsapp-cloud" | "whatsapp" | "webchat" | "instagram" | "messenger";
@@ -181,6 +182,7 @@ export default function ClientDetailPage() {
     <header className="entity-header"><div className="entity-avatar xl">{client.name.slice(0, 2).toUpperCase()}</div><div><div className="title-line"><h1>{client.name}</h1><StatusBadge active={client.is_active} /></div><p>{businessLabel(catalog, client, lang) || t("clients.detail.industryUndefined")} · {client.agents.length === 1 ? t("clients.detail.agentOne", { count: client.agents.length }) : t("clients.detail.agentMany", { count: client.agents.length })}</p></div><div className="header-actions"><Link href={`/agents/new?client=${client.id}`} className="button primary"><Bot size={17} /> {t("clients.detail.newAgent")}</Link></div></header>
     <SectionTabs<Tab> className="client-tabs" value={tab} onChange={changeTab} tabs={[
       { id: "details", label: t("clients.detail.tabDetails"), icon: Settings2 },
+      { id: "crm", label: t("crm.title"), icon: ListChecks },
       { id: "agents", label: t("clients.detail.tabAgents"), icon: Bot, badge: client.agents.length },
       { id: "channels", label: t("clients.detail.tabChannels"), icon: Radio },
       { id: "teams", label: t("clients.detail.tabTeams"), icon: Users },
@@ -190,6 +192,8 @@ export default function ClientDetailPage() {
       { id: "webhooks", label: t("clients.detail.tabWebhooks"), icon: Webhook },
       { id: "portal", label: t("clients.detail.tabPortal"), icon: Globe2 },
     ]} />
+
+    {tab === "crm" && <CrmWorkspace base={`/clients/${id}`} agency canManage agents={client.agents} />}
 
     {tab === "details" && <form className="page-form" onSubmit={saveDetails}><section className="form-section"><div className="section-copy"><h2>{t("clients.detail.clientInfo")}</h2><p>{t("clients.detail.clientInfoCopy")}</p></div><div className="form-fields"><div className="logo-editor"><button type="button" className="logo-preview" onClick={() => logoRef.current?.click()}>{client.logo_url ? <img src={`${client.logo_url}&r=${logoVersion}`} alt={t("clients.detail.logoAlt")} /> : <ImagePlus size={24} />}</button><div><strong>{t("clients.detail.logoLabel")}</strong><small>{t("clients.detail.logoHint")}</small><div><button type="button" className="text-button" onClick={() => logoRef.current?.click()}>{t("clients.detail.logoChange")}</button>{client.logo_url && <button type="button" className="text-button danger-text" onClick={deleteLogo}><Trash2 size={14} /> {t("clients.detail.logoRemove")}</button>}</div></div><input ref={logoRef} hidden type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={(e) => uploadLogo(e.target.files?.[0])} /></div><IndustryPicker value={business} onChange={setBusiness} /><label><span className="label-row">{t("clients.detail.name")} <AiHint text={t("aiContext.businessName")} /></span><input name="name" required defaultValue={client.name} /></label><label>{t("clients.detail.timezoneLabel")}<Combobox value={timezone} onChange={setTimezone} options={TIMEZONES} placeholder={t("clients.detail.timezoneLabel")} /><span className="field-help">{t("clients.detail.timezoneHint")}</span></label><label className="switch-row"><span><strong>{t("clients.detail.activeClient")}</strong><small>{t("clients.detail.activeClientHint")}</small></span><input name="is_active" type="checkbox" defaultChecked={client.is_active} /></label></div></section><div className="form-footer split"><button type="button" className="button danger" onClick={openDelete}><Trash2 size={16} /> {t("clients.detail.deleteClient")}</button><button className="button primary" disabled={busy || !isBusinessComplete(business)}>{busy ? <LoaderCircle className="spin" size={17} /> : <Save size={17} />} {t("clients.detail.saveChanges")}</button></div></form>}
 

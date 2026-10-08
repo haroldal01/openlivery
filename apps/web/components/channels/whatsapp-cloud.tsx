@@ -9,6 +9,7 @@ import { api, messageFrom } from "@/lib/api";
 import { accountName, accountTitle, messagingLimitLabel, qualityLabel, qualityTone, rememberLine, requestedLine, type ChannelSetupProps } from "@/lib/channels";
 import { useT, type I18nKey } from "@/lib/i18n";
 import type { WhatsAppCloudChannel } from "@/types";
+import { KapsoConnection } from "@/components/kapso-connection";
 
 const stateKeys: Record<WhatsAppCloudChannel["status"], { label: I18nKey; copy: I18nKey }> = {
   disconnected: { label: "clients.whatsappCloud.statusDisconnectedLabel", copy: "clients.whatsappCloud.statusDisconnectedCopy" },
@@ -76,7 +77,8 @@ export function WhatsAppCloudSetup({ client, onBack }: ChannelSetupProps) {
       .then((items) => {
         setLines(items);
         const wanted = requestedLine();
-        const line = items.find((item) => item.id === wanted.line) ?? null;
+        const setupId = new URLSearchParams(window.location.search).get("setup_link_id");
+        const line = items.find((item) => item.id === wanted.line || (setupId && item.kapso_setup_link_id === setupId)) ?? null;
         if (wanted.adding || (!line && !items.length)) startAdding(); else show(line);
       })
       .catch((err) => setError(messageFrom(err))).finally(() => setLoading(false));
@@ -136,6 +138,11 @@ export function WhatsAppCloudSetup({ client, onBack }: ChannelSetupProps) {
   }
 
   if (loading) return <div className="page-loading"><LoaderCircle className="spin" /> {t("clients.whatsappCloud.loading")}</div>;
+  if (adding || channel?.provider === "kapso") return <div className="wa-page">
+    <button type="button" className="back-link" onClick={lines.length ? () => show(null) : onBack}><ArrowLeft size={17} /> {t("common.back")}</button>
+    <KapsoConnection key={id} base={`/clients/${id}`} agents={client.agents} channels={lines} agency
+      onRefresh={() => api<WhatsAppCloudChannel[]>(`/whatsapp-cloud/clients/${id}/channels`).then(setLines)} />
+  </div>;
   const state = stateKeys[channel?.status || "disconnected"];
   const canConnect = Boolean(agentId && phoneNumberId.trim() && !busy);
   const nameOf = (line: WhatsAppCloudChannel) => accountName(line, t("clients.whatsappCloud.numberFallback", { n: lines.indexOf(line) + 1 }));
